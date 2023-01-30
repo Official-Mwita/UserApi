@@ -1,7 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json.Linq;
 using System.Data;
 using System.Data.SqlClient;
 using UserApi.Models;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace UserApi.Controllers
 {
@@ -46,47 +48,130 @@ namespace UserApi.Controllers
             return result;
         }
 
-        // Returns an invoice by its invoice id
-        [HttpGet("{id}")]
-        public string Get(int id)
+        // Returns an invoice by its invoice inv_no
+        [HttpGet("{inv_no}")]
+        public async Task<JsonResult> Get(string? inv_no)
         {
-            return "value";
+            JsonResult result;
+            try
+            {
+                using (SqlConnection connection = _connection)
+                {
+                    connection.Open();
+                    string procedure = "InvoiceByID";
+
+                    using (SqlCommand command = new SqlCommand(procedure, connection))
+                    {
+                        command.CommandType = CommandType.StoredProcedure;
+                        command.Parameters.AddWithValue("@InvoiceID", SqlDbType.NVarChar).Value = inv_no;
+                        SqlDataReader reader = await command.ExecuteReaderAsync();
+                        reader.Read();
+                        Invoice invoice = new Invoice()
+                        {
+                            DateCreated = reader.GetDateTime(2),
+                            InvoiceID = reader.GetString(1),
+                            ServerdBy = reader.GetString(5),
+                            TotalBillable = reader.GetDecimal(3),
+                            TotalTaxable = reader.GetDecimal(4)
+                        };
+                        result = new JsonResult(invoice);
+
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                result = new JsonResult("An error occured processing your result");
+            }
+           
+                return result;
         }
 
         // Saves a new invoice into the database. Using stored procedure
         [HttpPost]
-        public void Post([FromBody] Invoice value)
+        public async Task<string> Post([FromBody] Invoice value)
         {
-            using(SqlConnection connection = _connection)
+            JObject jsonObject = new JObject();
+            try
             {
-                connection.Open();
-
-                string query = "InsterttoInvoice";
-                using (SqlCommand command = new SqlCommand(query, connection))
+                using (SqlConnection connection = _connection)
                 {
-                    command.CommandType = System.Data.CommandType.StoredProcedure;
-                    command.Parameters.AddWithValue("@Invoice_ID", SqlDbType.NVarChar).Value = value.InvoiceID;
-                    command.Parameters.AddWithValue("@Total_Billable", SqlDbType.Money).Value = value.TotalBillable;
-                    command.Parameters.AddWithValue("@Total_Taxable", SqlDbType.Money).Value = value.TotalTaxable;
-                    command.Parameters.AddWithValue("@Served_By", SqlDbType.NVarChar).Value = value.ServerdBy;
+                    connection.Open();
 
-                    command.ExecuteReader();
+                    string query = "InsterttoInvoice";
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        command.CommandType = CommandType.StoredProcedure;
+                        command.Parameters.AddWithValue("@Invoice_ID", SqlDbType.NVarChar).Value = value.InvoiceID;
+                        command.Parameters.AddWithValue("@Total_Billable", SqlDbType.Money).Value = value.TotalBillable;
+                        command.Parameters.AddWithValue("@Total_Taxable", SqlDbType.Money).Value = value.TotalTaxable;
+                        command.Parameters.AddWithValue("@Served_By", SqlDbType.NVarChar).Value = value.ServerdBy;
+
+                        SqlDataReader reader = await command.ExecuteReaderAsync();
+                        reader.Read();
+                        jsonObject.Add("Redirect", "api/Invoice");
+                        jsonObject.Add("Message", reader.GetString(0));
+                        jsonObject.Add("Success", true);
+                        jsonObject.Add("Date", DateTime.Now);
+                    }
+
+
                 }
+            }
+            catch (Exception)
+            {
+                jsonObject.Add("Message", "An error occured processing you request. Try again");
+                jsonObject.Add("Success", false);
+                jsonObject.Add("Date", DateTime.Now);
+
+            }
+            string message = jsonObject.ToString();
+            return message;
+           
+        }
+
+
+        // DELETE api/<InvoiceController>/5
+        [HttpDelete("{inv_no}")]
+        public async Task<string> Delete(string inv_no)
+        {
+            JObject jsonObject = new JObject();
+            try
+            {
+                using (SqlConnection connection = _connection)
+                {
+                    connection.Open();
+
+
+                    string query = "Delete_Invoice";
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        command.CommandType = CommandType.StoredProcedure;
+                        command.Parameters.AddWithValue("@Invoice_ID", SqlDbType.NVarChar).Value = inv_no;
+
+                        SqlDataReader reader = await command.ExecuteReaderAsync();
+                        reader.Read();
+
+                        jsonObject.Add("Redirect", "api/Invoice");
+                        jsonObject.Add("Message", reader.GetString(0));
+                        jsonObject.Add("Success", true);
+                        jsonObject.Add("Date", DateTime.Now);
+                    }
+                }
+
+            }
+            catch (Exception)
+            {
+                jsonObject.Add("Message", "An error occured processing you request. Try again");
+                jsonObject.Add("Success", false);
+                jsonObject.Add("Date", DateTime.Now);
 
 
             }
-        }
 
-        // PUT api/<InvoiceController>/5
-        [HttpPut("{id}")]
-        public void Put(int id, [FromBody] string value)
-        {
-        }
+            string message = jsonObject.ToString();
+            return message;
 
-        // DELETE api/<InvoiceController>/5
-        [HttpDelete("{id}")]
-        public void Delete(int id)
-        {
         }
     }
 }
