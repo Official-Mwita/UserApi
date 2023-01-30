@@ -8,15 +8,15 @@ builder.Services.AddEndpointsApiExplorer();
 
 
 //Remove swagger for react
-//builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    //app.UseSwagger();
-    //app.UseSwaggerUI();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 
     //Swagger is disabled above for react
     //CORS is enable for react too
